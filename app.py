@@ -1,6 +1,7 @@
 from flask import Flask, render_template_string, request, jsonify
 import requests
 import time
+import re
 from supabase import create_client
 
 app = Flask(__name__)
@@ -141,19 +142,30 @@ def check_data():
     if not token:
         return jsonify({"error": "Failed to authenticate with Spamhaus API"}), 401
 
-    print(f"🔑 Using Token: {token[:5]}...")  # Securely truncated
-
     results = []
     for item in data:
         entry_result = {}
         try:
+            # Determine if the item is an IP or domain
+            if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", item):
+                endpoint = f"https://api.spamhaus.org/api/v1/ip/{item}"
+            else:
+                # Basic domain format validation
+                if not re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", item):
+                    entry_result[item] = {"error": "Invalid domain format"}
+                    results.append(entry_result)
+                    continue
+                endpoint = f"https://api.spamhaus.org/api/v1/domain/{item}"
+
             response = requests.get(
-                f"https://api.spamhaus.org/api/v1/query/{item}",
+                endpoint,
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=10
             )
             
-            if response.status_code == 401:
+            if response.status_code == 404:
+                entry_result[item] = {"result": "Not listed in Spamhaus databases"}
+            elif response.status_code == 401:
                 # Invalidate cached token
                 global cached_token, token_expiry
                 cached_token = None
