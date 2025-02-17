@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 # Supabase Configuration
 SUPABASE_URL = "https://pmbdilahhlzpcckjdwwm.supabase.co"
-SUPABASE_KEY = "your-supabase-key-here"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtYmRpbGFoaGx6cGNja2pkd3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3Mjc2NTcsImV4cCI6MjA1NTMwMzY1N30.f2KWxu2G1qBWsI8lqLYdEr7gw5IdUpADXK25p6JfA6o"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Function to fetch API credentials from Supabase
