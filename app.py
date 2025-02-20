@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 # Supabase Configuration
 SUPABASE_URL = "https://pmbdilahhlzpcckjdwwm.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtYmRpbGFoaGx6cGNja2pkd3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3Mjc2NTcsImV4cCI6MjA1NTMwMzY1N30.f2KWxu2G1qBWsI8lqLYdEr7gw5IdUpADXK25p6JfA6o"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtYmRpbGFoaGx6cGNja2pkd3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3Mjc2NTcsImV4cCI6MjA1NTMwMzY1N30.f2KWxu2G1qBWsI8lqLYdEr7gw5IdUpADXK25p6JfA6o"  # Replace with your actual Supabase key
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Function to fetch API credentials from Supabase
@@ -28,7 +28,7 @@ def get_spamhaus_token():
         response = requests.post(
             "https://api.spamhaus.org/api/v1/login",
             json={
-                "username": credentials["email"],
+                "username": credentials["username"],  # Ensure this matches your Supabase table
                 "password": credentials["password"],
                 "realm": credentials.get("realm", "intel")
             },
@@ -92,15 +92,20 @@ FRONTEND_HTML = """
                 tbody.innerHTML = '';
                 data.forEach(result => {
                     for (const [ip, details] of Object.entries(result)) {
-                        if (details.results) {
+                        if (details.results && details.results.length > 0) {
                             details.results.forEach(entry => {
                                 const row = document.createElement('tr');
                                 row.innerHTML = `<td>${ip}</td>
-                                                 <td>${new Date(entry.listed * 1000).toLocaleString()}</td>
-                                                 <td>${new Date(entry.valid_until * 1000).toLocaleString()}</td>
+                                                 <td>${entry.listed ? new Date(entry.listed * 1000).toLocaleString() : 'N/A'}</td>
+                                                 <td>${entry.valid_until ? new Date(entry.valid_until * 1000).toLocaleString() : 'N/A'}</td>
                                                  <td>${entry.heuristic || 'N/A'}</td>`;
-                                tbody.appendChild(row);
+                                tbody.appendChild (row);
                             });
+                        } else {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `<td>${ip}</td>
+                                             <td colspan="3">No results found</td>`;
+                            tbody.appendChild(row);
                         }
                     }
                 });
@@ -135,12 +140,11 @@ def check_data():
             result = response.json()
             parsed_result = {
                 ip: {
-                    "code": result.get("code", 500),
                     "results": [{
-                        "listed": result['results'][0]['listed'] if result['results'] else None,
-                        "valid_until": result['results'][0]['valid_until'] if result['results'] else None,
-                        "heuristic": result['results'][0].get('heuristic', 'N/A') if result['results'] else 'N/A'
-                    }] if 'results' in result and result['results'] else []
+                        "listed": entry['listed'],
+                        "valid_until": entry['valid_until'],
+                        "heuristic": entry.get('heuristic', 'N/A')
+                    } for entry in result.get('results', [])]
                 }
             }
         except Exception as e:
