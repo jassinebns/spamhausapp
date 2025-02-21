@@ -1,9 +1,7 @@
-from flask import Flask, request, render_template_string, Response
+from flask import Flask, request, render_template_string
 from supabase import create_client, Client
 import requests
 import re
-import csv
-import io
 from datetime import datetime
 
 app = Flask(__name__)
@@ -37,7 +35,52 @@ HTML_STRING = '''
         .error { color: #dc3545; }
         .timestamp { color: #6c757d; font-size: 0.9em; }
     </style>
-    
+    <script>
+        function clearForm() {
+            document.getElementById('entriesInput').value = '';
+            const resultsDiv = document.querySelector('.results');
+            if (resultsDiv) resultsDiv.innerHTML = '';
+            const errorDiv = document.getElementById('error');
+            if (errorDiv) errorDiv.innerHTML = '';
+        }
+
+        function exportToCSV() {
+            const domainRows = [['Domain', 'Score', 'Error']];
+            const ipRows = [['IP Address', 'Listed', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error']];
+
+            document.querySelectorAll('.result').forEach(result => {
+                const entry = result.querySelector('h3').textContent;
+                const error = result.querySelector('.error')?.textContent.replace('Error: ', '') || '';
+                
+                if (result.querySelector('.score')) {
+                    // Domain result
+                    const score = result.querySelector('.score').textContent.split('/')[0];
+                    domainRows.push([entry, score, error]);
+                } else {
+                    // IP result
+                    const listed = result.querySelector('.clean') ? 'No' : 'Yes';
+                    const listedAt = result.querySelector('.listed-at')?.textContent || '';
+                    const validUntil = result.querySelector('.valid-until')?.textContent || '';
+                    const heuristic = result.querySelector('.heuristic')?.textContent || '';
+                    const dataset = result.querySelector('.dataset')?.textContent || '';
+                    ipRows.push([entry, listed, listedAt, validUntil, heuristic, dataset, error]);
+                }
+            });
+
+            const csvContent = [
+                'Domain Results\\n' + domainRows.map(row => row.join(',')).join('\\n'),
+                '\\nIP Results\\n' + ipRows.map(row => row.join(',')).join('\\n')
+            ].join('');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'spamhaus_results.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
 </head>
 <body>
     <h1>Spamhaus Reputation Check</h1>
@@ -47,23 +90,22 @@ HTML_STRING = '''
             <textarea 
                 name="entries" 
                 id="entriesInput"
-                placeholder="Enter domains or IP addresses (one per line)..."
+                placeholder="Enter domains or IP addresses (one per line)"
             >{% if request.method == 'POST' %}{{ request.form.entries }}{% endif %}</textarea>
             <div>
                 <button type="submit">Check Reputation</button>
                 <button type="button" onclick="clearForm()">Clear</button>
-    
             </div>
         </form>
     </div>
 
     {% if error %}
-        <div class="error">{{ error }}</div>
+        <div class="error" id="error">{{ error }}</div>
     {% endif %}
 
     {% if results %}
     <div class="results">
-        <button type="button" onclick="exportToCSV()" style="margin-bottom: 10px;">Export CSV</button>
+        <button onclick="exportToCSV()" style="margin-bottom: 10px;">Export to CSV</button>
         {% for result in results %}
         <div class="result">
             <h3>{{ result.entry }}</h3>
@@ -81,7 +123,6 @@ HTML_STRING = '''
                         <div class="info-item">
                             <span class="label">Dataset:</span> 
                             <span class="dataset">{{ result.dataset }}</span>
-                        ```html
                         </div>
                         <div class="info-item">
                             <span class="label">Listed:</span> 
@@ -104,45 +145,6 @@ HTML_STRING = '''
         {% endfor %}
     </div>
     {% endif %}
-<script>
-        // Properly escaped string literals
-        const placeholderText = "Enter domains or IP addresses (one per line)\\nExamples:\\ngoogle.com\\n8.8.8.8\\nexample.org\\n104.249.137.173";
-        document.getElementById('entriesInput').placeholder = placeholderText;
-
-        function clearForm() {
-            document.getElementById('entriesInput').value = '';
-            const resultsDiv = document.querySelector('.results');
-            if (resultsDiv) resultsDiv.innerHTML = '';
-            const errorDiv = document.getElementById('error');
-            if (errorDiv) errorDiv.innerHTML = '';
-        }
-
-        function exportToCSV() {
-            // CSV generation logic
-            const rows = [['Entry', 'Type', 'Listed', 'Score', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error']];
-            
-            document.querySelectorAll('.result').forEach(result => {
-                const entry = result.querySelector('h3').textContent;
-                const type = result.dataset.type || '';
-                const listed = result.querySelector('.listed')?.textContent || 'No';
-                // ... collect other data ...
-                
-                rows.push([entry, type, listed, /* other fields */]);
-            });
-
-            // Create and trigger CSV download
-            const csvContent = rows.map(row => 
-                row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
-            ).join('\\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'spamhaus_results.csv';
-            link.click();
-        }
-    </script>
-
 </body>
 </html>
 '''
@@ -221,7 +223,6 @@ def check_ip(ip, token):
     if not active_listings:
         return {'listed': False}
     
-    # Return first active listing details
     return {
         'listed': True,
         **active_listings[0]
@@ -267,46 +268,14 @@ def index():
                                 'score': domain_data.get('score'),
                                 'error': None
                             })
-                        
-                        results.append(result)
-                    except requests.HTTPError as e:
-                        error_msg = f"API Error: {e.response.status_code}"
-                        if e.response.text:
-                            error_msg += f" - {e.response.json().get('message', 'Unknown error')}"
-                        result['error'] = error_msg
-                        results.append(result)
                     except Exception as e:
                         result['error'] = str(e)
-                        results.append(result)
+                    
+                    results.append(result)
             except Exception as e:
-                error = f"System Error: {str(e)}"
-        else:
-            error = "Please enter at least one domain or IP address"
-    
-    return render_template_string(HTML_STRING, results=results, error=error)
+                error = str(e)
 
-@app.route('/export', methods=['POST'])
-def export():
-    results = request.json.get('results', [])
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Entry', 'Type', 'Listed', 'Score', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error'])
-    
-    for result in results:
-        writer.writerow([
-            result['entry'],
-            result.get('type', ''),
-            result.get('listed', 'No'),
-            result.get('score', ''),
-            result.get('listed_at', ''),
-            result.get('valid_until', ''),
-            result.get('heuristic', ''),
-            result.get('dataset', ''),
-            result.get('error', '')
-        ])
-    
-    output.seek(0)
-    return Response(output.getvalue(), mimetype='text/csv', headers={"Content-Disposition": "attachment;filename=spamhaus_results.csv"})
+    return render_template_string(HTML_STRING, results=results, error=error)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
