@@ -155,7 +155,7 @@ def get_spamhaus_credentials():
     """Retrieve credentials from Supabase"""
     try:
         response = supabase.table('api_credentials') \
-                         .select('username, password') \
+                         .select('email, password') \
                          .execute()
         if not response.data:
             raise ValueError("No credentials found in database")
@@ -169,7 +169,7 @@ def get_auth_token():
         credentials = get_spamhaus_credentials()
         
         auth_payload = {
-            "username": credentials['username'],
+            "username": credentials['email'],
             "password": credentials['password'],
             "realm": "intel"
         }
