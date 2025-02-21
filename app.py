@@ -37,7 +37,46 @@ HTML_STRING = '''
         .error { color: #dc3545; }
         .timestamp { color: #6c757d; font-size: 0.9em; }
     </style>
-    
+    <script>
+        function clearForm() {
+            document.getElementById('entriesInput').value = '';
+            document.querySelector('.results').innerHTML = '';
+            document.getElementById('error').innerHTML = '';
+        }
+
+        function exportToCSV() {
+            const rows = [];
+            rows.push(['Entry', 'Type', 'Listed', 'Score', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error']);
+            
+            document.querySelectorAll('.result').forEach(resultElement => {
+                const entry = resultElement.querySelector('h3').textContent;
+                const type = resultElement.querySelector('.type')?.textContent || '';
+                const listed = resultElement.querySelector('.listed')?.textContent || 'No';
+                const score = resultElement.querySelector('.score')?.textContent || '';
+                const listedAt = resultElement.querySelector('.listed-at')?.textContent || '';
+                const validUntil = resultElement.querySelector('.valid-until')?.textContent || '';
+                const heuristic = resultElement.querySelector('.heuristic')?.textContent || '';
+                const dataset = resultElement.querySelector('.dataset')?.textContent || '';
+                const error = resultElement.querySelector('.error')?.textContent || '';
+                
+                rows.push([entry, type, listed, score, listedAt, validUntil, heuristic, dataset, error]);
+            });
+            
+            const csvContent = rows.map(row => 
+                row.map(field => `"${field.replace(/"/g, '""')}"`).join(',')
+            ).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'spamhaus_results.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
 </head>
 <body>
     <h1>Spamhaus Reputation Check</h1>
@@ -104,46 +143,7 @@ HTML_STRING = '''
     </div>
     {% endif %}
 
-<script>
-        function clearForm() {
-            document.getElementById('entriesInput').value = '';
-            document.querySelector('.results').innerHTML = '';
-            document.getElementById('error').innerHTML = '';
-        }
 
-        function exportToCSV() {
-            const rows = [];
-            rows.push(['Entry', 'Type', 'Listed', 'Score', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error']);
-            
-            document.querySelectorAll('.result').forEach(resultElement => {
-                const entry = resultElement.querySelector('h3').textContent;
-                const type = resultElement.querySelector('.type')?.textContent || '';
-                const listed = resultElement.querySelector('.listed')?.textContent || 'No';
-                const score = resultElement.querySelector('.score')?.textContent || '';
-                const listedAt = resultElement.querySelector('.listed-at')?.textContent || '';
-                const validUntil = resultElement.querySelector('.valid-until')?.textContent || '';
-                const heuristic = resultElement.querySelector('.heuristic')?.textContent || '';
-                const dataset = resultElement.querySelector('.dataset')?.textContent || '';
-                const error = resultElement.querySelector('.error')?.textContent || '';
-                
-                rows.push([entry, type, listed, score, listedAt, validUntil, heuristic, dataset, error]);
-            });
-            
-            const csvContent = rows.map(row => 
-                row.map(field => `"${field.replace(/"/g, '""')}"`).join(',')
-            ).join('\n');
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'spamhaus_results.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    </script>
 </body>
 </html>
 '''
