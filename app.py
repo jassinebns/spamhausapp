@@ -170,16 +170,73 @@ def check_domain(domain, token):
     return response.json()
 
 def check_ip(ip, token):
-    """Check IP reputation"""
+    """Check IP reputation with historical analysis"""
     headers = {'Authorization': f'Bearer {token}'}
-    response = requests.get(f"{IP_CHECK_URL}{ip}", headers=headers)
+    response = requests.get(
+        f"{IP_CHECK_URL}{ip}",
+        headers=headers
+    )
     
+    # Handle different response scenarios
     if response.status_code == 404:
-        return None  # IP not listed
+        return {'status': 'clean', 'dataset': None}
     
     response.raise_for_status()
     data = response.json()
-    return data.get('results', [{}])[0] if data.get('results') else None
+    
+    current_timestamp = datetime.utcnow().timestamp()
+    active_listings = []
+    
+    for record in data.get('results', []):
+        # Filter only current listings from CSS dataset
+        if record.get('valid_until', 0) > current_timestamp and record.get('dataset') == 'CSS':
+            active_listings.append({
+                'dataset': record.get('dataset'),
+                'listed': record.get('listed'),
+                'valid_until': record.get('valid_until'),
+                'heuristic': record.get('heuristic'),
+                'rule': record.get('rule')
+            })
+    
+    return {
+        'status': 'listed' if active_listings else 'clean',
+        'listings': active_listings,
+        'dataset': 'CSS' if active_listings else None
+    }
+
+@app.template_filter('datetime')
+def format_datetime(timestamp):
+    """Convert UNIX timestamp to readable datetime"""
+    if not timestamp:
+        return 'N/A'
+    return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
+
+# In the template processing:
+{% elif result.type == 'ip' %}
+    {% if result.status == 'listed' %}
+        <div class="info-item">
+            <span class="label">Dataset:</span> {{ result.dataset }}
+        </div>
+        {% for listing in result.listings %}
+        <div class="listing">
+            <div class="info-item">
+                <span class="label">Listed:</span> {{ listing.listed|datetime }}
+            </div>
+            <div class="info-item">
+                <span class="label">Valid Until:</span> {{ listing.valid_until|datetime }}
+            </div>
+            <div class="info-item">
+                <span class="label">Heuristic:</span> {{ listing.heuristic }}
+            </div>
+            <div class="info-item">
+                <span class="label">Rule ID:</span> {{ listing.rule }}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="clean">✅ IP is clean (no active CSS listings)</div>
+    {% endif %}
+{% endif %}
 
 @app.template_filter('datetime')
 def format_datetime(timestamp):
