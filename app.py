@@ -14,7 +14,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # API endpoints
 LOGIN_URL = "https://api.spamhaus.org/api/v1/login"
 DOMAIN_CHECK_URL = "https://api.spamhaus.org/api/intel/v2/byobject/domain/"
-IP_CHECK_URL = "https://api.spamhaus.org/api/intel/v1/byobject/cidr/all/listed/history/"
+IP_CHECK_URL = "https://api.spamhaus.org/api/intel/v1/byobject/cidr/CSS/listed/history/"
 
 HTML_STRING = '''
 <!DOCTYPE html>
