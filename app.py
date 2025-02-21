@@ -260,7 +260,7 @@ def index():
                                 'error': None
                             })
                         else:
-                            domain_data ```python
+                            domain_data
                             = check_domain(entry, token)
                             result.update({
                                 'type': 'domain',
