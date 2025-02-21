@@ -107,7 +107,7 @@ def get_spamhaus_credentials():
     """Retrieve credentials from Supabase"""
     try:
         response = supabase.table('api_credentials') \
-                         .select('username, password, realm') \
+                         .select('email, password, realm') \
                          .execute()
         if not response.data:
             raise ValueError("No credentials found in database")
