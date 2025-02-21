@@ -13,14 +13,50 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 LOGIN_URL = "https://api.spamhaus.org/api/v1/login"
 DOMAIN_CHECK_URL = "https://api.spamhaus.org/api/intel/v2/byobject/domain/"
 
+HTML_STRING = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spamhaus Domain Check</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        textarea { width: 100%; height: 150px; padding: 10px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .result { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>Domain Reputation Check</h1>
+    <form method="POST">
+        <textarea name="domains" placeholder="Enter domains (one per line)" required></textarea>
+        <button type="submit">Check Scores</button>
+    </form>
+    
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+    
+    {% if results %}
+    <div class="results">
+        {% for result in results %}
+        <div class="result">
+            {{ result.domain }}: <strong>{{ result.score }}</strong>
+            {% if result.error %}<span class="error">({{ result.error }})</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</body>
+</html>
+'''
+
 def get_spamhaus_credentials():
-    """Retrieve Spamhaus credentials from Supabase"""
+    """Retrieve credentials from Supabase"""
     try:
-        response = supabase.table('api_credentials')\
-                        .select('username, password, realm')\
-                        .execute()
-        if not response.data:
-            raise ValueError("No credentials found in database")
+        response = supabase.table('api_credentials') \
+                         .select('username, password, realm') \
+                         .execute()
         return response.data[0]
     except Exception as e:
         raise RuntimeError(f"Failed to fetch credentials: {str(e)}")
@@ -36,8 +72,15 @@ def get_auth_token():
     response.raise_for_status()
     return response.json().get('token')
 
-# Rest of the Flask app remains the same as previous version
-# (HTML_STRING and other functions stay unchanged)
+def check_domain(domain, token):
+    """Check domain reputation"""
+    headers = {'Authorization': f'Bearer {token}'}
+    response = requests.get(
+        f"{DOMAIN_CHECK_URL}{domain}",
+        headers=headers
+    )
+    response.raise_for_status()
+    return response.json()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -63,11 +106,11 @@ def index():
                         results.append({
                             'domain': domain,
                             'score': None,
-                            'error': str(e).replace("'", "")[:50]
+                            'error': str(e)
                         })
                 
             except Exception as e:
-                error = f"Authentication Error: {str(e)}"
+                error = f"Error: {str(e)}"
         else:
             error = "Please enter at least one domain"
     
