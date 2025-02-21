@@ -87,7 +87,7 @@ def get_spamhaus_credentials():
     """Retrieve credentials from Supabase"""
     try:
         response = supabase.table('api_credentials') \
-                         .select('username, password, realm') \
+                         .select('email, password, realm') \
                          .execute()
         return response.data[0]
     except Exception as e:
