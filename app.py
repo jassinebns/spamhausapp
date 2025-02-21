@@ -116,15 +116,51 @@ def get_spamhaus_credentials():
         raise RuntimeError(f"Failed to fetch credentials: {str(e)}")
 
 def get_auth_token():
-    """Get authentication token from Spamhaus API"""
-    credentials = get_spamhaus_credentials()
-    response = requests.post(
-        LOGIN_URL,
-        json=credentials,
-        headers={'Content-Type': 'application/json'}
-    )
-    response.raise_for_status()
-    return response.json().get('token')
+    """Authenticate with Spamhaus API and return JWT token"""
+    try:
+        # 1. Get credentials from Supabase
+        credentials = get_spamhaus_credentials()
+        
+        # 2. Validate credentials structure
+        required_fields = ['username', 'password']
+        for field in required_fields:
+            if field not in credentials or not credentials[field]:
+                raise ValueError(f"Missing required field in credentials: {field}")
+        
+        # 3. Construct API-compliant payload
+        auth_payload = {
+            "username": credentials['username'],
+            "password": credentials['password'],
+            "realm": "intel"  # Hardcoded as per API requirements
+        }
+        
+        # 4. Make authenticated request
+        response = requests.post(
+            LOGIN_URL,
+            json=auth_payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        # 5. Handle API response
+        response.raise_for_status()
+        
+        # 6. Validate response structure
+        token = response.json().get('token')
+        if not token:
+            raise ValueError("No token in API response")
+            
+        return token
+        
+    except requests.exceptions.RequestException as e:
+        error_msg = f"API Connection Error: {str(e)}"
+        if hasattr(e, 'response') and e.response:
+            error_details = e.response.json().get('message', 'No error details')
+            error_msg += f" | Status: {e.response.status_code} | Details: {error_details}"
+        raise RuntimeError(error_msg)
+        
+    except (KeyError, ValueError) as e:
+        raise RuntimeError(f"Credential Validation Error: {str(e)}")
 
 def check_domain(domain, token):
     """Check domain reputation"""
