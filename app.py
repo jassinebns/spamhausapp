@@ -52,6 +52,7 @@ HTML_STRING = '''
             <div>
                 <button type="submit">Check Reputation</button>
                 <button type="button" onclick="clearForm()">Clear</button>
+    
             </div>
         </form>
     </div>
@@ -62,7 +63,7 @@ HTML_STRING = '''
 
     {% if results %}
     <div class="results">
-        <button onclick="exportToCSV()" style="margin-bottom: 10px;">Export to CSV</button>
+        <button type="button" onclick="exportToCSV()" style="margin-bottom: 10px;">Export CSV</button>
         {% for result in results %}
         <div class="result">
             <h3>{{ result.entry }}</h3>
