@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template_string
-import requests
 from supabase import create_client, Client
+import requests
 import re
 from datetime import datetime
 
@@ -74,8 +74,11 @@ example.org
                 {% elif result.type == 'ip' %}
                     {% if result.listed %}
                         <div class="info-item">
+                            <span class="label">Dataset:</span> {{ result.dataset }}
+                        </div>
+                        <div class="info-item">
                             <span class="label">Listed:</span> 
-                            <span class="timestamp">{{ result.listed|datetime }}</span>
+                            <span class="timestamp">{{ result.listed_at|datetime }}</span>
                         </div>
                         <div class="info-item">
                             <span class="label">Valid Until:</span> 
@@ -86,7 +89,7 @@ example.org
                             {{ result.heuristic }}
                         </div>
                     {% else %}
-                        <div class="clean">✅ IP is clean (not listed)</div>
+                        <div class="clean">IP is clean (no active listings)</div>
                     {% endif %}
                 {% endif %}
             {% endif %}
@@ -107,7 +110,7 @@ def get_spamhaus_credentials():
     """Retrieve credentials from Supabase"""
     try:
         response = supabase.table('api_credentials') \
-                         .select('email, password, realm') \
+                         .select('username, password') \
                          .execute()
         if not response.data:
             raise ValueError("No credentials found in database")
@@ -118,49 +121,25 @@ def get_spamhaus_credentials():
 def get_auth_token():
     """Authenticate with Spamhaus API and return JWT token"""
     try:
-        # 1. Get credentials from Supabase
         credentials = get_spamhaus_credentials()
         
-        # 2. Validate credentials structure
-        required_fields = ['email', 'password']
-        for field in required_fields:
-            if field not in credentials or not credentials[field]:
-                raise ValueError(f"Missing required field in credentials: {field}")
-        
-        # 3. Construct API-compliant payload
         auth_payload = {
-            "username": credentials['email'],
+            "username": credentials['username'],
             "password": credentials['password'],
-            "realm": "intel"  # Hardcoded as per API requirements
+            "realm": "intel"
         }
         
-        # 4. Make authenticated request
         response = requests.post(
             LOGIN_URL,
             json=auth_payload,
             headers={'Content-Type': 'application/json'},
             timeout=10
         )
-        
-        # 5. Handle API response
         response.raise_for_status()
+        return response.json()['token']
         
-        # 6. Validate response structure
-        token = response.json().get('token')
-        if not token:
-            raise ValueError("No token in API response")
-            
-        return token
-        
-    except requests.exceptions.RequestException as e:
-        error_msg = f"API Connection Error: {str(e)}"
-        if hasattr(e, 'response') and e.response:
-            error_details = e.response.json().get('message', 'No error details')
-            error_msg += f" | Status: {e.response.status_code} | Details: {error_details}"
-        raise RuntimeError(error_msg)
-        
-    except (KeyError, ValueError) as e:
-        raise RuntimeError(f"Credential Validation Error: {str(e)}")
+    except Exception as e:
+        raise RuntimeError(f"Authentication failed: {str(e)}")
 
 def check_domain(domain, token):
     """Check domain reputation"""
@@ -170,16 +149,37 @@ def check_domain(domain, token):
     return response.json()
 
 def check_ip(ip, token):
-    """Check IP reputation"""
+    """Check IP reputation with expiration validation"""
     headers = {'Authorization': f'Bearer {token}'}
     response = requests.get(f"{IP_CHECK_URL}{ip}", headers=headers)
     
     if response.status_code == 404:
-        return None  # IP not listed
+        return {'listed': False}
     
     response.raise_for_status()
     data = response.json()
-    return data.get('results', [{}])[0] if data.get('results') else None
+    
+    current_time = datetime.utcnow().timestamp()
+    active_listings = []
+    
+    for listing in data.get('results', []):
+        valid_until = listing.get('valid_until', 0)
+        if valid_until > current_time:
+            active_listings.append({
+                'listed_at': listing.get('listed_at'),
+                'valid_until': valid_until,
+                'heuristic': listing.get('heuristic'),
+                'dataset': listing.get('dataset', 'CSS')
+            })
+    
+    if not active_listings:
+        return {'listed': False}
+    
+    # Return first active listing details
+    return {
+        'listed': True,
+        **active_listings[0]
+    }
 
 @app.template_filter('datetime')
 def format_datetime(timestamp):
@@ -204,17 +204,17 @@ def index():
                     result = {'entry': entry}
                     try:
                         if is_valid_ip(entry):
-                            # IP Check
                             ip_data = check_ip(entry, token)
                             result.update({
                                 'type': 'ip',
-                                'listed': ip_data.get('listed') if ip_data else None,
-                                'valid_until': ip_data.get('valid_until') if ip_data else None,
-                                'heuristic': ip_data.get('heuristic') if ip_data else None,
+                                'listed': ip_data['listed'],
+                                'listed_at': ip_data.get('listed_at'),
+                                'valid_until': ip_data.get('valid_until'),
+                                'heuristic': ip_data.get('heuristic'),
+                                'dataset': ip_data.get('dataset'),
                                 'error': None
                             })
                         else:
-                            # Domain Check
                             domain_data = check_domain(entry, token)
                             result.update({
                                 'type': 'domain',
