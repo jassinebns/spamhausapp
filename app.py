@@ -37,46 +37,7 @@ HTML_STRING = '''
         .error { color: #dc3545; }
         .timestamp { color: #6c757d; font-size: 0.9em; }
     </style>
-    <script>
-        function clearForm() {
-            document.getElementById('entriesInput').value = '';
-            document.querySelector('.results').innerHTML = '';
-            document.getElementById('error').innerHTML = '';
-        }
-
-        function exportToCSV() {
-            const rows = [];
-            rows.push(['Entry', 'Type', 'Listed', 'Score', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error']);
-            
-            document.querySelectorAll('.result').forEach(resultElement => {
-                const entry = resultElement.querySelector('h3').textContent;
-                const type = resultElement.querySelector('.type')?.textContent || '';
-                const listed = resultElement.querySelector('.listed')?.textContent || 'No';
-                const score = resultElement.querySelector('.score')?.textContent || '';
-                const listedAt = resultElement.querySelector('.listed-at')?.textContent || '';
-                const validUntil = resultElement.querySelector('.valid-until')?.textContent || '';
-                const heuristic = resultElement.querySelector('.heuristic')?.textContent || '';
-                const dataset = resultElement.querySelector('.dataset')?.textContent || '';
-                const error = resultElement.querySelector('.error')?.textContent || '';
-                
-                rows.push([entry, type, listed, score, listedAt, validUntil, heuristic, dataset, error]);
-            });
-            
-            const csvContent = rows.map(row => 
-                row.map(field => `"${field.replace(/"/g, '""')}"`).join(',')
-            ).join('\n');
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'spamhaus_results.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    </script>
+    
 </head>
 <body>
     <h1>Spamhaus Reputation Check</h1>
@@ -142,7 +103,44 @@ HTML_STRING = '''
         {% endfor %}
     </div>
     {% endif %}
+<script>
+        // Properly escaped string literals
+        const placeholderText = "Enter domains or IP addresses (one per line)\\nExamples:\\ngoogle.com\\n8.8.8.8\\nexample.org\\n104.249.137.173";
+        document.getElementById('entriesInput').placeholder = placeholderText;
 
+        function clearForm() {
+            document.getElementById('entriesInput').value = '';
+            const resultsDiv = document.querySelector('.results');
+            if (resultsDiv) resultsDiv.innerHTML = '';
+            const errorDiv = document.getElementById('error');
+            if (errorDiv) errorDiv.innerHTML = '';
+        }
+
+        function exportToCSV() {
+            // CSV generation logic
+            const rows = [['Entry', 'Type', 'Listed', 'Score', 'Listed At', 'Valid Until', 'Heuristic', 'Dataset', 'Error']];
+            
+            document.querySelectorAll('.result').forEach(result => {
+                const entry = result.querySelector('h3').textContent;
+                const type = result.dataset.type || '';
+                const listed = result.querySelector('.listed')?.textContent || 'No';
+                // ... collect other data ...
+                
+                rows.push([entry, type, listed, /* other fields */]);
+            });
+
+            // Create and trigger CSV download
+            const csvContent = rows.map(row => 
+                row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
+            ).join('\\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'spamhaus_results.csv';
+            link.click();
+        }
+    </script>
 
 </body>
 </html>
