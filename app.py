@@ -122,14 +122,14 @@ def get_auth_token():
         credentials = get_spamhaus_credentials()
         
         # 2. Validate credentials structure
-        required_fields = ['username', 'password']
+        required_fields = ['email', 'password']
         for field in required_fields:
             if field not in credentials or not credentials[field]:
                 raise ValueError(f"Missing required field in credentials: {field}")
         
         # 3. Construct API-compliant payload
         auth_payload = {
-            "username": credentials['username'],
+            "username": credentials['email'],
             "password": credentials['password'],
             "realm": "intel"  # Hardcoded as per API requirements
         }
